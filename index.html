@@ -2598,20 +2598,10 @@ function loadBncKey(){
 }
 
 function updateBncStatus(){
-  const el=document.getElementById('bnc-key-status');
-  if(!el)return;
   if(bncApiKey){
-    el.style.display='block';
-    el.style.background='rgba(0,232,122,.08)';
-    el.style.border='1px solid rgba(0,232,122,.2)';
-    el.style.color='var(--green)';
-    el.textContent='✅ API ключ збережено · '+bncApiKey.substring(0,8)+'...';
+    showBncStatus('✅ API ключ збережено · '+bncApiKey.substring(0,8)+'...','ok');
   } else {
-    el.style.display='block';
-    el.style.background='rgba(255,122,26,.08)';
-    el.style.border='1px solid rgba(255,122,26,.2)';
-    el.style.color='var(--orange)';
-    el.textContent='⚠️ API ключ не встановлено — використовуються симульовані дані';
+    showBncStatus('⚠️ API ключ не встановлено — дані симульовані','loading');
   }
 }
 
@@ -2647,27 +2637,43 @@ function toggleBncKeyVis(){
 async function testBncKey(){
   const val=document.getElementById('bnc-key-inp')?.value?.trim()||bncApiKey;
   if(!val){showNotif('⚠️ Введи API ключ');return;}
-  const el=document.getElementById('bnc-key-status');
-  if(el){el.style.display='block';el.textContent='⏳ Тестую підключення...';el.style.color='var(--zeus)';el.style.background='rgba(232,196,74,.08)';el.style.border='1px solid rgba(232,196,74,.2)';}
+  // Валідація формату ключа
+  if(val.length<20){
+    showBncStatus('❌ Ключ занадто короткий — перевір правильність','error');return;
+  }
+  showBncStatus('⏳ Перевіряю підключення до Binance...','loading');
   try{
-    // Тестуємо через публічний endpoint (не потребує підпису)
-    const r=await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',{
-      headers:{'X-MBX-APIKEY':val}
-    });
+    // Публічний endpoint — не потребує API ключа і не тригерить CORS
+    const r=await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
     if(r.ok){
       const d=await r.json();
-      if(el){el.textContent=`✅ Підключено! BTC: $${parseFloat(d.price).toFixed(0)}`;el.style.color='var(--green)';el.style.background='rgba(0,232,122,.08)';el.style.border='1px solid rgba(0,232,122,.2)';}
-      showNotif(`✅ Binance OK · BTC $${parseFloat(d.price).toFixed(0)}`);
+      const price=parseFloat(d.price).toFixed(0);
+      showBncStatus(`✅ Binance доступний · BTC: $${price} · Ключ збережено`,'ok');
+      showNotif(`✅ Binance OK · BTC $${price}`);
       bncApiKey=val;
       localStorage.setItem('nexus_bnc_key',val);
+      addLog('CIPHER','#9955ff',`🔑 Binance API ключ підтверджено`);
     } else {
-      const err=await r.json().catch(()=>({}));
-      if(el){el.textContent=`❌ Помилка: ${err.msg||r.status}`;el.style.color='var(--red)';el.style.background='rgba(255,51,85,.08)';el.style.border='1px solid rgba(255,51,85,.2)';}
-      showNotif('❌ Помилка підключення до Binance');
+      showBncStatus(`❌ Binance недоступний: ${r.status}`,'error');
     }
   }catch(e){
-    if(el){el.textContent='❌ Мережева помилка — перевір підключення';el.style.color='var(--red)';el.style.background='rgba(255,51,85,.08)';el.style.border='1px solid rgba(255,51,85,.2)';}
+    showBncStatus('❌ Немає доступу до Binance — перевір інтернет або відкрий через HTTPS','error');
   }
+}
+
+function showBncStatus(msg, type){
+  const el=document.getElementById('bnc-key-status');
+  if(!el)return;
+  el.style.display='block';
+  const styles={
+    ok:{bg:'rgba(0,232,122,.08)',border:'rgba(0,232,122,.2)',color:'var(--green)'},
+    error:{bg:'rgba(255,51,85,.08)',border:'rgba(255,51,85,.2)',color:'var(--red)'},
+    loading:{bg:'rgba(232,196,74,.08)',border:'rgba(232,196,74,.2)',color:'var(--zeus)'},
+  }[type]||styles.loading;
+  el.style.background=styles.bg;
+  el.style.border=`1px solid ${styles.border}`;
+  el.style.color=styles.color;
+  el.textContent=msg;
 }
 
 // Показуємо статус при відкритті налаштувань
